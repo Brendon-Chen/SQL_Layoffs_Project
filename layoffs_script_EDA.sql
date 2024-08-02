@@ -37,7 +37,7 @@ ORDER BY 1 DESC;
 SELECT MIN(`date`), MAX(`date`)
 FROM layoffs_staging2;
 
--- rolling total layoffs
+-- rolling total layoffs by year
 SELECT YEAR(`date`), MONTH(`date`), SUM(total_laid_off)
 FROM layoffs_staging2
 WHERE `date` IS NOT NULL
@@ -45,13 +45,25 @@ GROUP BY YEAR(`date`), MONTH(`date`)
 ORDER BY 1 DESC;
 
 WITH rolling_total AS (
-SELECT YEAR(`date`) as years, MONTH(`date`) as months, SUM(total_laid_off) AS total_layoff
+SELECT YEAR(`date`) as `year`, MONTH(`date`) as `month`, SUM(total_laid_off) AS total_layoff
 FROM layoffs_staging2
 WHERE `date` IS NOT NULL
-GROUP BY YEAR(`date`), MONTH(`date`)
+GROUP BY `year`, `month`
 ORDER BY 1 DESC
 )
-SELECT years, months, total_layoff, SUM(total_layoff) OVER(PARTITION BY years ORDER BY years, months) as roll_total
+SELECT `year`, `month`, total_layoff, SUM(total_layoff) OVER(PARTITION BY `year` ORDER BY `year`, `month`) as roll_total
 FROM rolling_total;
 
-
+-- Company Layoffs
+WITH company_year AS (
+SELECT company, YEAR(`date`) as `year`, SUM(total_laid_off) as total_laid_off
+FROM layoffs_staging2
+GROUP BY company, `year`
+), company_year_rank AS (
+SELECT *, DENSE_RANK() OVER(PARTITION BY `year` ORDER BY total_laid_off DESC) as ranking
+FROM company_year
+WHERE `year` IS NOT NULL
+ORDER BY ranking ASC
+)
+SELECT * FROM company_year_rank
+WHERE ranking <= 5;
